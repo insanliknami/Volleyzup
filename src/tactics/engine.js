@@ -33,6 +33,12 @@ const CSS = `.t3d{position:relative;width:100%;height:100%;overflow:hidden;backg
     text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:3px}
 .t3d #t3d-cams button svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7}
 .t3d #t3d-cams button.on{background:var(--yellow);color:var(--navy)}
+.t3d #t3d-cams .sep{height:1px;background:rgba(255,255,255,.12);margin:2px 6px}
+.t3d #t3d-fsBtn{color:var(--yellow)}
+/* Sözde tam ekran — iPhone dahil her yerde çalışır */
+.t3d.fs{position:fixed !important;inset:0 !important;width:100vw !important;
+  height:100vh !important;height:100dvh !important;z-index:99999 !important;
+  border-radius:0 !important;border:0 !important;margin:0 !important}
 .t3d #t3d-readout{position:absolute;top:calc(58px + env(safe-area-inset-top));right:12px;z-index:10;
     display:none;padding:10px 13px;border-radius:14px;background:rgba(11,26,52,.85);
     backdrop-filter:blur(12px);border:1px solid var(--line);min-width:168px}
@@ -143,6 +149,8 @@ const HTML = `<canvas id="t3d-c"></canvas>
   <button data-view="top"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 12h18"/></svg>Üst</button>
   <button data-view="side"><svg viewBox="0 0 24 24"><path d="M2 18h20"/><path d="M12 18V6"/><path d="M4 8h16"/></svg>Yan</button>
   <button data-view="back"><svg viewBox="0 0 24 24"><path d="M2 19h20"/><ellipse cx="12" cy="11" rx="9" ry="5"/><path d="M12 19v-3"/></svg>Arka</button>
+  <i class="sep"></i>
+  <button id="t3d-fsBtn"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span id="t3d-fsLbl">Tam</span></button>
 </div>
 
 <div id="t3d-readout"></div>
@@ -312,7 +320,12 @@ export function mountTactics(root, opts) {
   function saveBook(){sSet(BKEY,JSON.stringify(BOOK));}
 
   var canvas=$('c');
+  /* Saha renkleri three r128 boru hattına göre ayarlandı.
+     0.160 varsayılanı sRGB çıktı + renk yönetimi → renkler soluklaşıyor.
+     Eski davranışı geri açıyoruz ki tasarlanan renkler birebir çıksın. */
+  if(THREE.ColorManagement) THREE.ColorManagement.enabled=false;
   var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true,preserveDrawingBuffer:true});
+  if('outputColorSpace' in renderer) renderer.outputColorSpace=THREE.LinearSRGBColorSpace;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 
@@ -1051,7 +1064,7 @@ export function mountTactics(root, opts) {
   function setView(k){
     curView=k;dst.r=VIEWS[k].r;dst.th=VIEWS[k].th;dst.ph=VIEWS[k].ph;
     isOrtho=!!VIEWS[k].ortho;camera=isOrtho?ocam:pcam;
-    var b=root.querySelectorAll('#cams button');
+    var b=root.querySelectorAll('#t3d-cams button');
     for(var i=0;i<b.length;i++)b[i].classList.toggle('on',b[i].getAttribute('data-view')===k);
     scheduleSave();
   }
@@ -1155,7 +1168,7 @@ export function mountTactics(root, opts) {
       dst.th-=(e.clientX-lx)*.006;
       dst.ph=Math.max(.02,Math.min(1.52,dst.ph-(e.clientY-ly)*.005));
       lx=e.clientX;ly=e.clientY;curView='';
-      var b=root.querySelectorAll('#cams button');
+      var b=root.querySelectorAll('#t3d-cams button');
       for(var i=0;i<b.length;i++)b[i].classList.remove('on');
     }
   });
@@ -1516,7 +1529,7 @@ export function mountTactics(root, opts) {
     clearTimeout(ht);ht=setTimeout(function(){hintEl.classList.remove('show');},2200);}
   root.querySelectorAll('[data-mode]').forEach(function(b){
     b.addEventListener('click',function(){setMode(b.getAttribute('data-mode'));});});
-  (function(){var b=root.querySelectorAll('#cams button');
+  (function(){var b=root.querySelectorAll('#t3d-cams button');
     for(var i=0;i<b.length;i++)(function(x){x.addEventListener('click',function(){
       setView(x.getAttribute('data-view'));});})(b[i]);})();
   root.querySelectorAll('[data-form]').forEach(function(b){
@@ -1524,6 +1537,41 @@ export function mountTactics(root, opts) {
       root.querySelectorAll('[data-form]').forEach(function(x){x.classList.remove('on');});
       b.classList.add('on');pushUndo();applyFormation(b.getAttribute('data-form'));
       closeSheets();toast(b.textContent.trim()+' yüklendi');});});
+  /* ── Tam ekran + yatay çevirme ── */
+  var fsOn=false;
+  function applyFs(on){
+    fsOn=on; root.classList.toggle('fs',on);
+    var l=$('fsLbl'); if(l) l.textContent=on?'Çık':'Tam';
+    setTimeout(resize,60); setTimeout(resize,320);
+  }
+  function enterFs(){
+    applyFs(true);
+    var req=root.requestFullscreen||root.webkitRequestFullscreen||root.msRequestFullscreen;
+    if(req){ try{ var pr=req.call(root); if(pr&&pr.catch)pr.catch(function(){}); }catch(e){} }
+    if(screen.orientation&&screen.orientation.lock){
+      var q=screen.orientation.lock('landscape');
+      if(q&&q.catch)q.catch(function(){
+        if(innerHeight>innerWidth) toast('Telefonu yana çevir — saha genişler');});
+    }else if(innerHeight>innerWidth){
+      toast('Telefonu yana çevir — saha genişler');
+    }
+  }
+  function exitFs(){
+    applyFs(false);
+    if(document.fullscreenElement||document.webkitFullscreenElement){
+      var ex=document.exitFullscreen||document.webkitExitFullscreen;
+      if(ex){ try{ ex.call(document); }catch(e){} }
+    }
+    if(screen.orientation&&screen.orientation.unlock){
+      try{ screen.orientation.unlock(); }catch(e){}
+    }
+  }
+  $('fsBtn').addEventListener('click',function(){ fsOn?exitFs():enterFs(); });
+  win('keydown',function(e){ if(e.key==='Escape'&&fsOn) exitFs(); });
+  win('fullscreenchange',function(){
+    if(!document.fullscreenElement&&fsOn) applyFs(false); });
+  win('orientationchange',function(){ setTimeout(resize,300); });
+
   $('rotNext').addEventListener('click',function(){pushUndo();rotate(1);});
   $('applyAll').addEventListener('click',function(){$('scope').classList.add('open');});
   $('scClose').addEventListener('click',function(){$('scope').classList.remove('open');});
@@ -1713,6 +1761,7 @@ export function mountTactics(root, opts) {
 
   return function unmount() {
     alive = false;
+    try { if (fsOn) exitFs(); } catch (e) {}
     listeners.forEach(([ev, fn]) => { if (ev === '__ro') fn(); else window.removeEventListener(ev, fn); });
     try { renderer.dispose(); } catch (e) {}
     root.classList.remove('t3d');
