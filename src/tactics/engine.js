@@ -897,20 +897,50 @@ export function mountTactics(root, opts) {
   }
   /* Kenarları A'(ax, -a) noktasından (xe,0) üzerinden geçen ışın:
      px(d) = ax + (xe-ax)*(a+d)/a  */
+  /* Çokgeni dikdörtgene kırp (Sutherland–Hodgman) — kama sahayı taşmasın */
+  function clipPoly(pts,xmin,xmax,dmin,dmax){
+    function pass(list,inside,cut){
+      var out=[];
+      for(var i=0;i<list.length;i++){
+        var A=list[i],B=list[(i+1)%list.length],ai=inside(A),bi=inside(B);
+        if(ai)out.push(A);
+        if(ai!==bi)out.push(cut(A,B));
+      }
+      return out;
+    }
+    function cx(A,B,x){var t=(x-A[0])/((B[0]-A[0])||1e-9);return [x,A[1]+(B[1]-A[1])*t];}
+    function cd(A,B,d){var t=(d-A[1])/((B[1]-A[1])||1e-9);return [A[0]+(B[0]-A[0])*t,d];}
+    var p=pts;
+    p=pass(p,function(P){return P[0]>=xmin;},function(A,B){return cx(A,B,xmin);});
+    if(p.length<3)return [];
+    p=pass(p,function(P){return P[0]<=xmax;},function(A,B){return cx(A,B,xmax);});
+    if(p.length<3)return [];
+    p=pass(p,function(P){return P[1]>=dmin;},function(A,B){return cd(A,B,dmin);});
+    if(p.length<3)return [];
+    p=pass(p,function(P){return P[1]<=dmax;},function(A,B){return cd(A,B,dmax);});
+    return p.length<3?[]:p;
+  }
+  /* Kenarlar: A'(ax) noktasından (xe,0) üzerinden geçen ışın
+     px(d) = ax + (xe-ax)*(a+d)/a
+     DİKKAT: Shape XY düzleminde; zemine yatırmak için X'te -90° döndürülüyor,
+     bu da şeklin +Y'sini dünyanın -Z'sine eşliyor. Derinlik bu yüzden ters işaretli. */
   function wedge(ax,a,x1,x2,dMax,u,fill,stroke,op){
-    if(dMax<=0.02)return;
+    var dm=Math.min(dMax,12.2);
+    if(dm<=0.06)return;
     var f=function(xe,d){return ax+(xe-ax)*(a+d)/a;};
-    var pts=[[f(x1,0),0],[f(x2,0),0],[f(x2,dMax),dMax],[f(x1,dMax),dMax]];
-    var sh=new THREE.Shape();
-    sh.moveTo(pts[0][0],u*pts[0][1]);
-    for(var i=1;i<4;i++)sh.lineTo(pts[i][0],u*pts[i][1]);
+    var poly=clipPoly([[f(x1,0.03),0.03],[f(x2,0.03),0.03],[f(x2,dm),dm],[f(x1,dm),dm]],
+                      -6.3,6.3,0.03,dm);
+    if(!poly.length)return;
+    var sh=new THREE.Shape(),i;
+    sh.moveTo(poly[0][0],-u*poly[0][1]);
+    for(i=1;i<poly.length;i++) sh.lineTo(poly[i][0],-u*poly[i][1]);
     sh.closePath();
     var m=new THREE.Mesh(new THREE.ShapeGeometry(sh),
       new THREE.MeshBasicMaterial({color:fill,transparent:true,opacity:op,
         side:THREE.DoubleSide,depthWrite:false}));
     m.rotation.x=-Math.PI/2;m.position.y=.017;shadowG.add(m);
     var vs=[];
-    for(i=0;i<4;i++)vs.push(new THREE.Vector3(pts[i][0],.021,u*pts[i][1]));
+    for(i=0;i<poly.length;i++) vs.push(new THREE.Vector3(poly[i][0],.021,u*poly[i][1]));
     vs.push(vs[0].clone());
     shadowG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(vs),
       new THREE.LineBasicMaterial({color:stroke})));
@@ -1059,7 +1089,24 @@ export function mountTactics(root, opts) {
     ocam.updateProjectionMatrix();
   }
   var cur={r:26.5,th:.62,ph:.98},dst={r:26.5,th:.62,ph:.98},curView='persp';
+  /* Sahayı kaydır: bakış hedefini kamera düzleminde ötele.
+     Piksel→dünya ölçeği kamera türüne ve uzaklığa göre hesaplanır. */
+  var panR=new THREE.Vector3(),panF=new THREE.Vector3(),panU=new THREE.Vector3(0,1,0);
+  function panBy(dx,dy){
+    var h=canvas.clientHeight||1;
+    var scale=isOrtho ? (cur.r*0.55)/h
+                      : 2*Math.tan(pcam.fov*Math.PI/360)*cur.r/h;
+    camera.getWorldDirection(panF); panF.y=0;
+    if(panF.lengthSq()<1e-6) panF.set(0,0,1);
+    panF.normalize();
+    panR.crossVectors(panF,panU).normalize();
+    target.addScaledVector(panR,-dx*scale);
+    target.addScaledVector(panF, dy*scale);
+    target.x=Math.max(-13,Math.min(13,target.x));
+    target.z=Math.max(-17,Math.min(17,target.z));
+  }
   function setView(k){
+    target.set(0,1.1,0);
     curView=k;dst.r=VIEWS[k].r;dst.th=VIEWS[k].th;dst.ph=VIEWS[k].ph;
     isOrtho=!!VIEWS[k].ortho;camera=isOrtho?ocam:pcam;
     var b=root.querySelectorAll('#t3d-cams button');
@@ -1088,7 +1135,9 @@ export function mountTactics(root, opts) {
   /* ══════════ ETKİLEŞİM ══════════ */
   var ray=new THREE.Raycaster(),ptr=new THREE.Vector2();
   var ground=new THREE.Plane(new THREE.Vector3(0,1,0),0),hp=new THREE.Vector3();
-  var orbit=false,orbitPending=false,lx=0,ly=0,pinch=0,downX=0,downY=0,downT=0,moved=false;
+  var orbit=false,orbitPending=false,panning=false,lx=0,ly=0,pinch=0,panMid=null;
+  var downX=0,downY=0,downT=0,moved=false;
+  function panWanted(e){return e.button===1||e.button===2||e.shiftKey;}
   var tmpV=new THREE.Vector3();
   function ndc(e){var r=canvas.getBoundingClientRect();
     ptr.x=((e.clientX-r.left)/r.width)*2-1;ptr.y=-((e.clientY-r.top)/r.height)*2+1;}
@@ -1132,8 +1181,10 @@ export function mountTactics(root, opts) {
       if(o.userData.drag){grab(o);return;}
     }
     var near=nearestOnScreen(e.clientX,e.clientY,46);
-    if(near){grab(near);return;}
-    closeSheets();orbitPending=true;lx=e.clientX;ly=e.clientY;
+    if(near&&!panWanted(e)){grab(near);return;}
+    closeSheets();
+    if(panWanted(e)) panning=true; else orbitPending=true;
+    lx=e.clientX;ly=e.clientY;
   });
   canvas.addEventListener('pointermove',function(e){
     var dd=Math.abs(e.clientX-downX)+Math.abs(e.clientY-downY);
@@ -1161,6 +1212,7 @@ export function mountTactics(root, opts) {
       }
       return;
     }
+    if(panning){ panBy(e.clientX-lx,e.clientY-ly); lx=e.clientX;ly=e.clientY; return; }
     if(orbitPending&&dd>8){orbit=true;orbitPending=false;lx=e.clientX;ly=e.clientY;}
     if(orbit){
       dst.th-=(e.clientX-lx)*.006;
@@ -1184,21 +1236,28 @@ export function mountTactics(root, opts) {
         scheduleSave();
       }
     }
-    selected=null;orbit=false;orbitPending=false;
+    selected=null;orbit=false;orbitPending=false;panning=false;
   }
   ['pointerup','pointercancel','pointerleave'].forEach(function(t){canvas.addEventListener(t,up);});
   canvas.addEventListener('wheel',function(e){e.preventDefault();
     dst.r=Math.max(7,Math.min(60,dst.r*(1+e.deltaY*.0011)));},{passive:false});
   canvas.addEventListener('touchstart',function(e){
-    if(e.touches.length===2){selected=null;orbit=false;orbitPending=false;
+    if(e.touches.length===2){selected=null;orbit=false;orbitPending=false;panning=false;
       pinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
-                       e.touches[0].clientY-e.touches[1].clientY);}},{passive:true});
+                       e.touches[0].clientY-e.touches[1].clientY);
+      panMid={x:(e.touches[0].clientX+e.touches[1].clientX)/2,
+              y:(e.touches[0].clientY+e.touches[1].clientY)/2};}},{passive:true});
   canvas.addEventListener('touchmove',function(e){
     if(e.touches.length===2&&pinch){e.preventDefault();
       var d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
                        e.touches[0].clientY-e.touches[1].clientY);
+      var mx=(e.touches[0].clientX+e.touches[1].clientX)/2,
+          my=(e.touches[0].clientY+e.touches[1].clientY)/2;
+      if(panMid) panBy(mx-panMid.x,my-panMid.y);
+      panMid={x:mx,y:my};
       dst.r=Math.max(7,Math.min(60,dst.r*(pinch/d)));pinch=d;}},{passive:false});
-  canvas.addEventListener('touchend',function(){pinch=0;},{passive:true});
+  canvas.addEventListener('touchend',function(){pinch=0;panMid=null;},{passive:true});
+  canvas.addEventListener('contextmenu',function(e){e.preventDefault();});
 
   /* ══════════ DÜZENLEYİCİ ══════════ */
   var editEl=$('edit'),rosterEl=$('roster'),bookEl=$('book'),editing=null;
