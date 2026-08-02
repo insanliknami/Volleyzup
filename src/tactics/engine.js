@@ -320,28 +320,26 @@ export function mountTactics(root, opts) {
   function saveBook(){sSet(BKEY,JSON.stringify(BOOK));}
 
   var canvas=$('c');
-  /* Saha renkleri three r128 boru hattına göre ayarlandı.
-     0.160 varsayılanı sRGB çıktı + renk yönetimi → renkler soluklaşıyor.
-     Eski davranışı geri açıyoruz ki tasarlanan renkler birebir çıksın. */
-  if(THREE.ColorManagement) THREE.ColorManagement.enabled=false;
   var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true,preserveDrawingBuffer:true});
-  if('outputColorSpace' in renderer) renderer.outputColorSpace=THREE.LinearSRGBColorSpace;
+  /* sRGB çıktı: gamma düzeltmesi uygulanır, renkler tasarlandığı gibi çıkar */
+  if('outputColorSpace' in renderer) renderer.outputColorSpace=THREE.SRGBColorSpace;
+  if('useLegacyLights' in renderer) renderer.useLegacyLights=false;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 
   var scene=new THREE.Scene();
   var camera=new THREE.PerspectiveCamera(42,1,0.1,400);
-  scene.add(new THREE.HemisphereLight(0xcfe2ff,0x2a3550,0.9));
-  var sun=new THREE.DirectionalLight(0xffffff,0.92);sun.position.set(11,20,9);sun.castShadow=true;
+  scene.add(new THREE.HemisphereLight(0xdfeaff,0x3d4a68,3.1));
+  var sun=new THREE.DirectionalLight(0xffffff,3.0);sun.position.set(11,20,9);sun.castShadow=true;
   sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-18;sun.shadow.camera.right=18;
   sun.shadow.camera.top=18;sun.shadow.camera.bottom=-18;sun.shadow.camera.far=60;
   sun.shadow.bias=-0.0015;scene.add(sun);
-  var fl=new THREE.DirectionalLight(0x9fc4ff,0.3);fl.position.set(-12,9,-10);scene.add(fl);
+  var fl=new THREE.DirectionalLight(0xa8ccff,1.05);fl.position.set(-12,9,-10);scene.add(fl);
 
   /* ══════════ TEMA + SAHA ══════════ */
   var THEMES={
-    classic:{court:0xC96A34,free:0x14708C,line:0xffffff,bg:0x111318},
-    dev:{court:0x2A2F3A,free:0x1A1D24,line:0xFF6B35,bg:0x111318}
+    classic:{court:0xD9762F,free:0x11748F,line:0xffffff,bg:0x111318},
+    dev:{court:0x1D4A80,free:0x18855F,line:0xFFB000,bg:0x111318}
   };
   var theme='classic',clubName='';
   var outer=new THREE.Mesh(new THREE.PlaneGeometry(18,27),
@@ -429,8 +427,8 @@ export function mountTactics(root, opts) {
   var BENCH_ROLE=['S','O','P','L','S','O','PÇ','S'];
   function newMember(num,name,role,jersey){
     return {id:nid(),num:String(num),name:name||'',role:role||'S',jersey:jersey,custom:false};}
-  var TEAMS=[{name:'A',col:'#12294c',sign:-1,roster:[]},
-             {name:'B',col:'#b33a2b',sign: 1,roster:[]}];
+  var TEAMS=[{name:'A',col:'#2E5FB5',sign:-1,roster:[]},
+             {name:'B',col:'#D14A33',sign: 1,roster:[]}];
   TEAMS.forEach(function(t,ti){
     var r=[],i,seed=(ti===0&&opts.players&&opts.players.length)?opts.players:null;
     for(i=0;i<14;i++){
@@ -514,7 +512,7 @@ export function mountTactics(root, opts) {
       new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
     hit.position.y=1.2;root.add(hit);
     var shadow=new THREE.Mesh(new THREE.CircleGeometry(.32,20),
-      new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.24}));
+      new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.20}));
     shadow.rotation.x=-Math.PI/2;root.add(shadow);
     var warn=new THREE.Mesh(new THREE.RingGeometry(.36,.47,26),
       new THREE.MeshBasicMaterial({color:0xD94F3D,side:THREE.DoubleSide,transparent:true,opacity:.95}));
@@ -556,7 +554,7 @@ export function mountTactics(root, opts) {
       depthTest:false,transparent:true}));
     s.scale.set(wide?1.4:.62,wide?.58:.62,1);s.renderOrder=10;return s;
   }
-  var skinMat=new THREE.MeshStandardMaterial({color:0xE8B98A,roughness:.82});
+  var skinMat=new THREE.MeshStandardMaterial({color:0xF0C79B,roughness:.78});
   TEAMS.forEach(function(team){
     for(var z=1;z<=6;z++){
       var mats={jersey:new THREE.MeshStandardMaterial({roughness:.6}),
