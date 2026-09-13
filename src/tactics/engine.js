@@ -178,6 +178,12 @@ const HTML = `<canvas id="t3d-c"></canvas>
     <button class="chip ghost" id="t3d-playRot">Rotasyonu oynat</button>
     <button class="chip ghost" id="t3d-legalBtn">Rotasyon kontrolü</button>
     <button class="chip ghost" id="t3d-blockTrio">File üçlüsü blok</button>
+    <i class="vsep"></i>
+    <span class="lbl">Ekipman</span>
+    <button class="chip ghost" id="t3d-addCone">Huni</button>
+    <button class="chip ghost" id="t3d-addCart">Sepet</button>
+    <button class="chip ghost" id="t3d-addMat">Minder</button>
+    <button class="chip ghost" id="t3d-clrGear">Temizle</button>
   </div>
 
   <div class="row hid" id="t3d-ctxTeach1">
@@ -188,6 +194,10 @@ const HTML = `<canvas id="t3d-c"></canvas>
     <button class="chip ghost" id="t3d-rangeBtn">Kapsama</button>
     <div class="sld" id="t3d-rangeWrap" style="display:none"><span>Yarıçap</span><input type="range" id="t3d-rangeR" min="15" max="45" value="28"><b id="t3d-rangeRv">2.8 m</b></div>
     <button class="chip ghost" id="t3d-measBtn">Ölç</button>
+    <button class="chip ghost" id="t3d-viewConeBtn">Görüş açısı</button>
+    <i class="vsep"></i>
+    <button class="chip ghost" id="t3d-noteBtn">Not ekle</button>
+    <button class="chip ghost" id="t3d-noteClr">Notları sil</button>
   </div>
 
   <div class="row hid" id="t3d-ctxTeach2">
@@ -1040,6 +1050,119 @@ export function mountTactics(root, opts) {
     measA=null;
   }
 
+  /* ══════════ EKİPMAN ══════════ */
+  /* Antrenman kurgusu için: huni, top sepeti, minder. Sürüklenebilir,
+     kaydedilir; oyuncu değil, sahne öğesi. */
+  var gearG=new THREE.Group();scene.add(gearG);
+  var GEAR=[];
+  function buildGear(kind){
+    var g=new THREE.Group(),m;
+    if(kind==='cone'){
+      m=new THREE.Mesh(new THREE.ConeGeometry(.17,.38,16),
+        new THREE.MeshStandardMaterial({color:0xFF7A1A,roughness:.6}));
+      m.position.y=.19;m.castShadow=true;g.add(m);
+      var base=new THREE.Mesh(new THREE.CylinderGeometry(.26,.28,.035,18),
+        new THREE.MeshStandardMaterial({color:0xE05A0A,roughness:.7}));
+      base.position.y=.018;g.add(base);
+    }else if(kind==='cart'){
+      var body=new THREE.Mesh(new THREE.BoxGeometry(.85,.55,.60),
+        new THREE.MeshStandardMaterial({color:0x3D4658,roughness:.65}));
+      body.position.y=.52;body.castShadow=true;g.add(body);
+      for(var i=0;i<7;i++){
+        var b=new THREE.Mesh(new THREE.SphereGeometry(.095,10,8),
+          new THREE.MeshStandardMaterial({color:i%2?0xF4C430:0xE8E8E8,roughness:.5}));
+        b.position.set((i%3-1)*.24,.86+(i>3?.13:0),((i%2)-.5)*.26);g.add(b);
+      }
+      [[-.33,-.22],[.33,-.22],[-.33,.22],[.33,.22]].forEach(function(w){
+        var wh=new THREE.Mesh(new THREE.CylinderGeometry(.075,.075,.05,12),
+          new THREE.MeshStandardMaterial({color:0x1A1D24,roughness:.8}));
+        wh.rotation.z=Math.PI/2;wh.position.set(w[0],.075,w[1]);g.add(wh);});
+    }else{
+      m=new THREE.Mesh(new THREE.BoxGeometry(1.6,.14,1.0),
+        new THREE.MeshStandardMaterial({color:0x2D7FD4,roughness:.85}));
+      m.position.y=.07;m.castShadow=true;g.add(m);
+    }
+    var hit=new THREE.Mesh(new THREE.CylinderGeometry(.55,.55,1.2,8),
+      new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
+    hit.position.y=.6;g.add(hit);
+    g.userData={drag:true,isGear:true,kind:kind};
+    gearG.add(g);GEAR.push(g);return g;
+  }
+  function addGear(kind,x,z){
+    var g=buildGear(kind);
+    g.position.set(x!==undefined?x:(Math.random()*4-2),0,z!==undefined?z:-10.4);
+    scheduleSave();return g;
+  }
+  function clearGear(){
+    while(GEAR.length){var g=GEAR.pop();gearG.remove(g);disposeObj(g);}
+    scheduleSave();
+  }
+
+  /* ══════════ GÖRÜŞ AÇISI ══════════ */
+  /* Seçili oyuncunun baktığı yön ve gördüğü alan. Duruşa göre açı değişir. */
+  var coneOn=false,coneG=new THREE.Group();scene.add(coneG);
+  var POSE_FOV={ready:1.75,dig:1.95,block:1.15,spike:1.45};
+  function clearCone(){
+    while(coneG.children.length){var c=coneG.children.pop();disposeObj(c);}
+  }
+  function refreshCone(sl){
+    clearCone();
+    if(!coneOn||!sl||sl.userData.isBall||sl.userData.isTarget||sl.userData.isGear)return;
+    var fov=POSE_FOV[sl.userData.pose]||1.75, R=7.5, yaw=sl.rotation.y;
+    var col=new THREE.Color(sl.userData.member.jersey);
+    var sh=new THREE.Shape(),N=26,i,a;
+    sh.moveTo(0,0);
+    for(i=0;i<=N;i++){
+      a=yaw-fov/2+fov*i/N;
+      sh.lineTo(Math.sin(a)*R,-Math.cos(a)*R);
+    }
+    sh.closePath();
+    var m=new THREE.Mesh(new THREE.ShapeGeometry(sh),
+      new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.16,
+        side:THREE.DoubleSide,depthWrite:false}));
+    m.rotation.x=-Math.PI/2;m.position.set(sl.position.x,.016,sl.position.z);
+    coneG.add(m);
+    var vs=[new THREE.Vector3(sl.position.x,.022,sl.position.z)];
+    for(i=0;i<=N;i++){
+      a=yaw-fov/2+fov*i/N;
+      vs.push(new THREE.Vector3(sl.position.x+Math.sin(a)*R,.022,sl.position.z+Math.cos(a)*R));
+    }
+    vs.push(vs[0].clone());
+    coneG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(vs),
+      new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.7})));
+  }
+
+  /* ══════════ NOTLAR ══════════ */
+  /* Sahaya metin etiketi. Ekran görüntüsü kendini anlatsın diye. */
+  var noteMode=false,noteG=new THREE.Group();scene.add(noteG);
+  var NOTES=[];
+  function makeNote(txt,x,z){
+    var c=document.createElement('canvas'),pad=18;
+    var g=c.getContext('2d');
+    g.font='800 40px system-ui,sans-serif';
+    var w=Math.min(620,g.measureText(txt).width+pad*2);
+    c.width=w+8;c.height=86;
+    g=c.getContext('2d');
+    g.fillStyle='rgba(244,196,48,.95)';
+    if(g.roundRect){g.beginPath();g.roundRect(4,10,w,60,14);g.fill();}
+    else g.fillRect(4,10,w,60);
+    g.fillStyle='#141A24';g.textAlign='center';g.textBaseline='middle';
+    g.font='800 36px system-ui,sans-serif';g.fillText(txt,(w+8)/2,41);
+    var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),
+      depthTest:false,transparent:true}));
+    var sc=Math.min(3.4,(w+8)/150);
+    sp.scale.set(sc,sc*86/(w+8)*2.2,1);
+    sp.position.set(x,1.55,z);sp.renderOrder=22;
+    sp.userData={isNote:true,txt:txt};
+    noteG.add(sp);NOTES.push({txt:txt,x:x,z:z,obj:sp});
+    scheduleSave();
+  }
+  function clearNotes(){
+    while(NOTES.length){var n=NOTES.pop();noteG.remove(n.obj);
+      if(n.obj.material.map)n.obj.material.map.dispose();n.obj.material.dispose();}
+    scheduleSave();
+  }
+
   /* ══════════ FİZİK ══════════ */
   var traj=null,landMark=null;
   function simulate(p0,v0,spin){
@@ -1201,6 +1324,8 @@ export function mountTactics(root, opts) {
       if(measOn){measOn=false;$('measBtn').classList.remove('on');clearMeas();measA=null;}
       if(rangeOn){rangeOn=false;$('rangeBtn').classList.remove('on');
         $('rangeWrap').style.display='none';clearRange();}
+      if(coneOn){coneOn=false;$('viewConeBtn').classList.remove('on');clearCone();}
+      if(noteMode){noteMode=false;$('noteBtn').classList.remove('on');}
     }
     refreshShadow();
     if(m!=='teach'&&trailsOn){trailsOn=false;
@@ -1218,7 +1343,8 @@ export function mountTactics(root, opts) {
   function ndc(e){var r=canvas.getBoundingClientRect();
     ptr.x=((e.clientX-r.left)/r.width)*2-1;ptr.y=-((e.clientY-r.top)/r.height)*2+1;}
   function draggables(){
-    var a=slots.concat([ball]);if(targetM.visible)a.push(targetM);return a;}
+    var a=slots.concat([ball]);if(targetM.visible)a.push(targetM);
+    return a.concat(GEAR);}
   function nearestOnScreen(cx,cy,maxPx){
     var r=canvas.getBoundingClientRect(),best=null,bd=maxPx,all=draggables();
     for(var i=0;i<all.length;i++){
@@ -1243,6 +1369,7 @@ export function mountTactics(root, opts) {
   }
   function grab(o){
     selected=o;
+    if(coneOn&&!o.userData.isBall&&!o.userData.isTarget&&!o.userData.isGear)refreshCone(o);
     if(!o.userData.isTarget){ring.visible=true;ring.position.set(o.position.x,.02,o.position.z);}
     startTrail(o);showLegal(o);
   }
@@ -1255,6 +1382,14 @@ export function mountTactics(root, opts) {
     if(hits.length){
       var o=hits[0].object;while(o.parent&&!o.userData.drag)o=o.parent;
       if(o.userData.drag){grab(o);return;}
+    }
+    if(noteMode&&!panWanted(e)){
+      ray.setFromCamera(ptr,camera);
+      if(ray.ray.intersectPlane(ground,hp)){
+        var q=prompt('Not metni:');
+        if(q&&q.trim())makeNote(q.trim().slice(0,40),hp.x,hp.z);
+        return;
+      }
     }
     if(measOn&&!panWanted(e)){
       ray.setFromCamera(ptr,camera);
@@ -1289,6 +1424,7 @@ export function mountTactics(root, opts) {
         if(!selected.userData.isTarget)ring.position.set(x,.02,z);
         feedTrail(selected);showLegal(selected);
         if(rangeOn)refreshRange();
+        if(coneOn&&!selected.userData.isGear)refreshCone(selected);
         if(selected.userData.isBall)faceBall();
       }
       return;
@@ -1307,7 +1443,7 @@ export function mountTactics(root, opts) {
     if(selected){
       endTrail();
       var tap=(!moved&&Date.now()-downT<450);
-      if(tap&&!selected.userData.isBall&&!selected.userData.isTarget){
+      if(tap&&!selected.userData.isBall&&!selected.userData.isTarget&&!selected.userData.isGear){
         if(mode==='block'){atkSlot=selected;refreshShadow();
           toast((selected.userData.member.name||selected.userData.member.num)+' smaçör seçildi');}
         else openEdit(selected);
@@ -1756,6 +1892,20 @@ export function mountTactics(root, opts) {
   $('rangeR').addEventListener('input',function(e){
     $('rangeRv').textContent=(parseInt(e.target.value,10)/10).toFixed(1)+' m';
     refreshRange();});
+  $('viewConeBtn').addEventListener('click',function(){
+    coneOn=!coneOn;
+    $('viewConeBtn').classList.toggle('on',coneOn);
+    if(!coneOn)clearCone(); else if(selected)refreshCone(selected);
+    toast(coneOn?'Bir oyuncuya dokun — ne gördüğünü gösterir':'Görüş açısı kapalı');});
+  $('noteBtn').addEventListener('click',function(){
+    noteMode=!noteMode;
+    $('noteBtn').classList.toggle('on',noteMode);
+    toast(noteMode?'Sahada bir noktaya dokun — not yaz':'Not ekleme kapalı');});
+  $('noteClr').addEventListener('click',function(){clearNotes();toast('Notlar silindi');});
+  $('addCone').addEventListener('click',function(){pushUndo();addGear('cone');toast('Huni eklendi — sürükle');});
+  $('addCart').addEventListener('click',function(){pushUndo();addGear('cart');toast('Top sepeti eklendi');});
+  $('addMat').addEventListener('click',function(){pushUndo();addGear('mat');toast('Minder eklendi');});
+  $('clrGear').addEventListener('click',function(){pushUndo();clearGear();toast('Ekipman temizlendi');});
   $('measBtn').addEventListener('click',function(){
     measOn=!measOn;
     $('measBtn').classList.toggle('on',measOn);
@@ -1813,7 +1963,10 @@ export function mountTactics(root, opts) {
   /* ══════════ DOSYA ══════════ */
   function stateObj(){
     syncWork();
-    return {v:14,work:WORK,lastrot:LASTROT,cat:category,form:curForm,rot:rotIdx,label:labelMode,view:curView,
+    return {v:15,work:WORK,lastrot:LASTROT,
+      gear:GEAR.map(function(g){return {k:g.userData.kind,
+        x:+g.position.x.toFixed(2),z:+g.position.z.toFixed(2)};}),
+      notes:NOTES.map(function(n){return {t:n.txt,x:+n.x.toFixed(2),z:+n.z.toFixed(2)};}),cat:category,form:curForm,rot:rotIdx,label:labelMode,view:curView,
       theme:theme,club:clubName,
       teams:TEAMS.map(function(t){return {name:t.name,col:t.col,
         roster:t.roster.map(function(m){return {id:m.id,num:m.num,name:m.name,role:m.role,
@@ -1860,6 +2013,9 @@ export function mountTactics(root, opts) {
     if(o.book&&o.book.cells){BOOK=o.book;saveBook();}
     if(o.work)WORK=o.work;
     if(o.lastrot)LASTROT=o.lastrot;
+    clearGear();clearNotes();
+    if(o.gear)o.gear.forEach(function(g){addGear(g.k,g.x,g.z);});
+    if(o.notes)o.notes.forEach(function(n){makeNote(n.t,n.x,n.z);});
     repaintAll();
   }
   $('expBtn').addEventListener('click',function(){
