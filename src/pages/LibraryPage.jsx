@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { EXERCISE_LIBRARY } from "../constants/exercises";
 import { CATEGORIES, LEVEL_COLORS, LEVEL_LABELS } from "../constants/index";
-import { BTN } from "../ui/styles";
+import { BTN, IS } from "../ui/styles";
 
 export default function LibraryPage({ isMobile }) {
   const [fc, setFc] = useState("all"); const [fl, setFl] = useState("all"); const [q, setQ] = useState("");
