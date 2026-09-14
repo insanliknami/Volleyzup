@@ -335,7 +335,14 @@ export function mountTactics(root, opts) {
   function saveBook(){sSet(BKEY,JSON.stringify(BOOK));}
 
   var canvas=$('c');
-  var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true,preserveDrawingBuffer:true});
+  if(!canvas) throw new Error('Saha tuvali bulunamadı (t3d-c)');
+  var renderer;
+  try{
+    renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true,preserveDrawingBuffer:true});
+  }catch(e){
+    throw new Error('WebGL başlatılamadı: '+(e && e.message ? e.message : e));
+  }
+  if(!renderer) throw new Error('WebGL bu tarayıcıda kullanılamıyor');
   /* sRGB çıktı: gamma düzeltmesi uygulanır, renkler tasarlandığı gibi çıkar */
   if('outputColorSpace' in renderer) renderer.outputColorSpace=THREE.SRGBColorSpace;
   if('useLegacyLights' in renderer) renderer.useLegacyLights=false;
