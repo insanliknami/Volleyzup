@@ -57,6 +57,13 @@ export default function App() {
 
   async function handleSelectProfile(p) { setActiveProfile(p); setData(await loadData(p.id)); }
   async function handleCreateProfile(p) { const np = [...profiles, p]; setProfiles(np); await saveProfiles(activeClub.id, np); await handleSelectProfile(p); }
+  /* Antrenörün açtığı kaydı sporcu sahiplenir: geçmişi korunur, kayıt ikiye bölünmez */
+  async function handleClaimProfile(pid, patch) {
+    const np = profiles.map(x => x.id === pid ? { ...x, ...patch, coachAdded: false } : x);
+    setProfiles(np); await saveProfiles(activeClub.id, np);
+    await handleSelectProfile(np.find(x => x.id === pid));
+  }
+  function setProfilesAndSave(np) { setProfiles(np); if (activeClub) saveProfiles(activeClub.id, np); }
   function handleLogout() { setActiveProfile(null); setData({ sessions: [], measurements: [], goals: [], injuries: [] }); setTab("dashboard"); }
 
   function setTeamsAndSave(t) { setTeams(t); if (activeClub) saveTeams(activeClub.id, t); }
@@ -73,7 +80,7 @@ export default function App() {
 
   if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#111318", color: "#FF6B35", fontFamily: "'DM Sans'" }}><div style={{ textAlign: "center" }}><div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}><LogoImg size={72} /></div><div>Yükleniyor...</div></div></div>;
   if (!activeClub) return <ClubScreen clubs={clubs} onSelect={enterClub} onCreate={handleCreateClub} onJoin={handleJoinClub} isMobile={isMobile} />;
-  if (!activeProfile) return <LoginScreen profiles={profiles} onSelect={handleSelectProfile} onCreate={handleCreateProfile} isMobile={isMobile} club={activeClub} onChangeClub={handleChangeClub} />;
+  if (!activeProfile) return <LoginScreen profiles={profiles} onSelect={handleSelectProfile} onCreate={handleCreateProfile} onClaim={handleClaimProfile} isMobile={isMobile} club={activeClub} onChangeClub={handleChangeClub} />;
 
   return (
     <div style={{ minHeight: "100vh", background: "#111318", color: "#E0E0E0", fontFamily: "'DM Sans', -apple-system, sans-serif" }}>
@@ -129,7 +136,7 @@ export default function App() {
           {tab === "training" && <TrainingPage data={data} setData={setData} profileId={activeProfile.id} isMobile={isMobile} />}
           {tab === "library" && <LibraryPage isMobile={isMobile} />}
           {tab === "attendance" && <AttendancePage team={activeTeam} profiles={profiles} isMobile={isMobile} />}
-          {tab === "teams" && <TeamsPage teams={teams} setTeams={setTeamsAndSave} profiles={profiles} isMobile={isMobile} activeTeamId={activeTeamId} onSelectTeam={selectTeam} />}
+          {tab === "teams" && <TeamsPage teams={teams} setTeams={setTeamsAndSave} profiles={profiles} setProfiles={setProfilesAndSave} isMobile={isMobile} activeTeamId={activeTeamId} onSelectTeam={selectTeam} />}
           {tab === "tactics" && (
             <Suspense fallback={<div style={{ color: "#6B7080", fontSize: 13, padding: 24 }}>Saha yükleniyor…</div>}>
               <TacticsPage profiles={profiles} clubId={activeClub.id} isMobile={isMobile} team={activeTeam} netHeight={activeTeam ? teamNetHeight(activeTeam) : null} />

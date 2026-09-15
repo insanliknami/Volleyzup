@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TEAM_CATEGORIES, TEAM_LEVELS, TEAM_GENDERS, teamDisplayName, teamNetHeight } from "../constants/index";
+import { TEAM_CATEGORIES, TEAM_LEVELS, TEAM_GENDERS, POSITIONS, teamDisplayName, teamNetHeight } from "../constants/index";
 import { IS, LS, BTN, OS } from "../ui/styles";
 import { gid } from "../lib/utils";
 import { attendanceStats } from "../lib/storage";
@@ -7,9 +7,45 @@ import ConfirmModal from "../ui/ConfirmModal";
 
 const EMPTY = { name: "", category: "midi", level: "", gender: "k", players: [] };
 
-export default function TeamsPage({ teams, setTeams, profiles, isMobile, activeTeamId, onSelectTeam }) {
+export default function TeamsPage({ teams, setTeams, profiles, setProfiles, isMobile, activeTeamId, onSelectTeam }) {
   const [edit, setEdit] = useState(null);      // düzenlenen takım (yeni ise id yok)
   const [confirm, setConfirm] = useState(null);
+  const [adding, setAdding] = useState(null);  // "one" | "bulk" | null
+  const [np, setNp] = useState({ name: "", position: "Smaçör", birthDate: "" });
+  const [bulk, setBulk] = useState("");
+
+  /* Antrenörün eklediği oyuncu kulüp listesine girer ve kadroya eklenir.
+     coachAdded işareti, sporcu sonradan telefondan giriş yapıp kaydı
+     sahiplenebilsin diye tutulur. */
+  function addOne() {
+    const nm = np.name.trim();
+    if (!nm) return;
+    const pl = { id: gid(), name: nm, position: np.position, birthDate: np.birthDate,
+                 gender: "", pin: "", coachAdded: true, createdAt: Date.now() };
+    setProfiles([...profiles, pl]);
+    if (edit) setEdit({ ...edit, players: [...edit.players, pl.id] });
+    setNp({ name: "", position: np.position, birthDate: "" });
+  }
+  function addBulk() {
+    const lines = bulk.split("\n").map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return;
+    const added = lines.map(line => {
+      const parts = line.split(/[,\t;]+|\s{2,}/).map(x => x.trim()).filter(Boolean);
+      const nm = parts[0] || line;
+      const pos = POSITIONS.find(P => parts.slice(1).some(x => x.toLocaleLowerCase("tr") === P.toLocaleLowerCase("tr")));
+      return { id: gid(), name: nm, position: pos || "Diğer", birthDate: "",
+               gender: "", pin: "", coachAdded: true, createdAt: Date.now() };
+    });
+    setProfiles([...profiles, ...added]);
+    if (edit) setEdit({ ...edit, players: [...edit.players, ...added.map(a => a.id)] });
+    setBulk(""); setAdding(null);
+  }
+  function removeProfile(pid) {
+    setProfiles(profiles.filter(x => x.id !== pid));
+    setTeams(teams.map(t => ({ ...t, players: (t.players || []).filter(x => x !== pid) })));
+    if (edit) setEdit({ ...edit, players: edit.players.filter(x => x !== pid) });
+    setConfirm(null);
+  }
 
   function save() {
     if (!edit) return;
@@ -86,17 +122,76 @@ export default function TeamsPage({ teams, setTeams, profiles, isMobile, activeT
             {" · "}file {teamNetHeight(edit).toFixed(2)} m
           </div>
 
-          <label style={LS}>Kadro ({edit.players.length} seçili)</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+            <label style={{ ...LS, marginBottom: 0 }}>Kadro ({edit.players.length} seçili)</label>
+            <button onClick={() => setAdding(adding === "one" ? null : "one")} style={BTN(adding === "one", "#00D4AA")}>+ Oyuncu ekle</button>
+            <button onClick={() => setAdding(adding === "bulk" ? null : "bulk")} style={BTN(adding === "bulk", "#00D4AA")}>Toplu ekle</button>
+          </div>
+
+          {adding === "one" && (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.6fr 1fr 1fr auto",
+              gap: 8, alignItems: "end", background: "rgba(0,212,170,0.05)",
+              border: "1px solid rgba(0,212,170,0.2)", borderRadius: 12, padding: 12, marginBottom: 12 }}>
+              <div><label style={LS}>İsim</label>
+                <input style={IS} placeholder="Ad Soyad" value={np.name} autoFocus
+                  onChange={e => setNp({ ...np, name: e.target.value })}
+                  onKeyDown={e => { if (e.key === "Enter") addOne(); }} /></div>
+              <div><label style={LS}>Mevki</label>
+                <select style={IS} value={np.position} onChange={e => setNp({ ...np, position: e.target.value })}>
+                  {POSITIONS.filter(x => x !== "Antrenör").map(x => <option key={x} value={x} style={OS}>{x}</option>)}
+                </select></div>
+              <div><label style={LS}>Doğum tarihi</label>
+                <input type="date" style={IS} value={np.birthDate}
+                  onChange={e => setNp({ ...np, birthDate: e.target.value })} /></div>
+              <button onClick={addOne} disabled={!np.name.trim()} style={{
+                background: np.name.trim() ? "#00D4AA" : "rgba(255,255,255,0.05)", border: "none",
+                borderRadius: 10, padding: "11px 20px", color: np.name.trim() ? "#0B1A14" : "#4A4F5C",
+                fontSize: 13, fontWeight: 700, cursor: np.name.trim() ? "pointer" : "default",
+                fontFamily: "'DM Sans', sans-serif", height: 40 }}>Ekle</button>
+            </div>
+          )}
+
+          {adding === "bulk" && (
+            <div style={{ background: "rgba(0,212,170,0.05)", border: "1px solid rgba(0,212,170,0.2)",
+              borderRadius: 12, padding: 12, marginBottom: 12 }}>
+              <label style={LS}>Her satıra bir oyuncu — isteğe bağlı olarak virgülle mevki</label>
+              <textarea value={bulk} onChange={e => setBulk(e.target.value)} rows={7}
+                placeholder={"Zeynep Kaya, Pasör\nElif Yılmaz, Libero\nDeniz Arslan"}
+                style={{ ...IS, resize: "vertical", fontFamily: "ui-monospace, monospace", fontSize: 13, lineHeight: 1.7 }} />
+              <button onClick={addBulk} disabled={!bulk.trim()} style={{
+                background: bulk.trim() ? "#00D4AA" : "rgba(255,255,255,0.05)", border: "none",
+                borderRadius: 10, padding: "10px 20px", marginTop: 10,
+                color: bulk.trim() ? "#0B1A14" : "#4A4F5C", fontSize: 13, fontWeight: 700,
+                cursor: bulk.trim() ? "pointer" : "default", fontFamily: "'DM Sans', sans-serif"
+              }}>{bulk.split("\n").filter(x => x.trim()).length} oyuncuyu ekle</button>
+            </div>
+          )}
+
           {profiles.length === 0 ? (
-            <p style={{ color: "#4A4F5C", fontSize: 12 }}>Kulüpte kayıtlı oyuncu yok.</p>
+            <p style={{ color: "#4A4F5C", fontSize: 12, marginBottom: 16 }}>
+              Kulüpte kayıtlı oyuncu yok. “+ Oyuncu ekle” ile başla.
+            </p>
           ) : (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
-              {profiles.map(p => (
-                <button key={p.id} onClick={() => togglePlayer(p.id)}
-                  style={BTN(edit.players.includes(p.id))}>{p.name}</button>
+              {profiles.filter(p => p.position !== "Antrenör").map(p => (
+                <span key={p.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <button onClick={() => togglePlayer(p.id)} style={BTN(edit.players.includes(p.id))}>
+                    {p.name}{p.coachAdded ? "" : " •"}
+                  </button>
+                  {p.coachAdded && (
+                    <button title="Kulüpten sil" onClick={() => setConfirm({
+                      message: `${p.name} kulüpten tamamen silinecek. Yoklama geçmişi kalır ama isim listede görünmez.`,
+                      onConfirm: () => removeProfile(p.id)
+                    })} style={{ background: "none", border: "none", color: "#4A4F5C", fontSize: 14,
+                      cursor: "pointer", padding: "0 2px" }}>×</button>
+                  )}
+                </span>
               ))}
             </div>
           )}
+          <div style={{ color: "#4A4F5C", fontSize: 11, marginBottom: 16 }}>
+            • işaretli oyuncular kendi telefonundan giriş yapmış olanlardır.
+          </div>
 
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={save} style={{ background: "#FF6B35", border: "none", borderRadius: 10,
