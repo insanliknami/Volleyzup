@@ -2048,7 +2048,13 @@ export function mountTactics(root, opts) {
   win('resize',resize);resize();
   if(window.ResizeObserver){var ro=new ResizeObserver(function(){resize();});ro.observe(root);
     listeners.push(['__ro',function(){ro.disconnect();}]);}
-  setTheme('classic');setNet('2.24');applyFormation('base');syncBallY();faceBall();
+  /* Takım seçiliyse kategorisine göre file yüksekliği otomatik gelir */
+  var startNet = opts.netHeight ? opts.netHeight.toFixed(2) : '2.24';
+  var netOpt = $('netSel');
+  if(netOpt && !Array.prototype.some.call(netOpt.options,function(o){return o.value===startNet;}))
+    startNet='2.24';
+  if(netOpt) netOpt.value=startNet;
+  setTheme('classic');setNet(startNet);applyFormation('base');syncBallY();faceBall();
 
   var lastT=performance.now();
   (function loop(){

@@ -9,6 +9,8 @@ export const TABS = [
   { id: "goals", label: "Bireysel Hedefler", icon: "🏆" },
   { id: "training", label: "Antrenman", icon: "⚡" },
   { id: "library", label: "Kütüphane", icon: "📚" },
+  { id: "attendance", label: "Yoklama", icon: "✅" },
+  { id: "teams", label: "Takımlar", icon: "👥" },
   { id: "tactics", label: "Taktik Tahtası", icon: "▦" },
   { id: "measurements", label: "Ölçümler", icon: "📏" },
   { id: "injuries", label: "Sakatlık Geçmişi", icon: "🩹" },
@@ -42,3 +44,36 @@ export const INJURY_SEVERITY = [
 ];
 
 /* Navy method body fat */
+
+/* ════════ TAKIM KATEGORİLERİ ════════ */
+export const TEAM_CATEGORIES = [
+  { id: "mini",   label: "Mini",     net: { k: 2.05, e: 2.05 } },
+  { id: "midi",   label: "Midi",     net: { k: 2.15, e: 2.15 } },
+  { id: "kucuk",  label: "Küçük",    net: { k: 2.24, e: 2.35 } },
+  { id: "yildiz", label: "Yıldız",   net: { k: 2.24, e: 2.35 } },
+  { id: "genc",   label: "Genç",     net: { k: 2.24, e: 2.35 } },
+  { id: "a",      label: "A Takım",  net: { k: 2.24, e: 2.43 } }
+];
+export const TEAM_LEVELS = ["", "A", "B", "C"];
+export const TEAM_GENDERS = [{ id: "k", label: "Kız" }, { id: "e", label: "Erkek" }];
+
+export function teamDisplayName(t) {
+  if (!t) return "";
+  const c = TEAM_CATEGORIES.find(x => x.id === t.category);
+  const g = TEAM_GENDERS.find(x => x.id === t.gender);
+  return [c ? c.label : "", t.level || "", g ? g.label : ""].filter(Boolean).join(" ");
+}
+export function teamNetHeight(t) {
+  const c = TEAM_CATEGORIES.find(x => x.id === (t && t.category));
+  if (!c) return 2.24;
+  return c.net[(t && t.gender) === "e" ? "e" : "k"];
+}
+
+/* ════════ YOKLAMA DURUMLARI ════════ */
+export const ATT_STATES = [
+  { id: "present", label: "Geldi",   short: "G", color: "#00D4AA" },
+  { id: "absent",  label: "Gelmedi", short: "×", color: "#E84855" },
+  { id: "excused", label: "İzinli",  short: "İ", color: "#FFD23F" },
+  { id: "late",    label: "Geç",     short: "Gç", color: "#FF9F1C" }
+];
+export const ATT_CYCLE = ["present", "absent", "excused", "late"];

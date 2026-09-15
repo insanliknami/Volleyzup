@@ -2,8 +2,10 @@ import { useState } from "react";
 import { CATEGORIES, MEASUREMENT_TYPES } from "../constants/index";
 import { fmtShort } from "../lib/utils";
 import { BTN } from "../ui/styles";
+import { attendanceStats, loadAttendanceIndex } from "../lib/storage";
+import { teamDisplayName } from "../constants/index";
 
-export default function ProgressPage({ data, isMobile }) {
+export default function ProgressPage({ data, isMobile, team, profiles = [] }) {
   const [sel, setSel] = useState("vertical_jump");
   const COLORS = ["#FF6B35", "#00D4AA", "#7B68EE", "#FFD23F", "#FF6B9D", "#4ECDC4", "#45B7D1", "#96CEB4", "#E84855", "#FF9F1C", "#9C27B0", "#00BCD4"];
   const mt = MEASUREMENT_TYPES.find(t => t.id === sel);
@@ -22,7 +24,36 @@ export default function ProgressPage({ data, isMobile }) {
   data.sessions.forEach(s => { const d = new Date(s.date); const ws = new Date(d); ws.setDate(d.getDate() - d.getDay() + 1); const k = ws.toISOString().split("T")[0]; if (!weekMap[k]) weekMap[k] = { exercises: 0, sessions: 0 }; weekMap[k].sessions++; weekMap[k].exercises += s.exercises?.length || 0; });
   const weekData = Object.entries(weekMap).sort(([a], [b]) => a.localeCompare(b)).slice(-12).map(([k, v]) => ({ week: fmtShort(k), ...v }));
 
-  return (<div>
+  return (<div>{team && (() => {
+    const roster = (team.players || []).map(pid => profiles.find(p => p.id === pid)).filter(Boolean);
+    const days = loadAttendanceIndex(team.id).length;
+    if (!roster.length || !days) return null;
+    const rows = roster.map(p => ({ p, st: attendanceStats(team.id, p.id) }))
+      .filter(r => r.st.rate !== null)
+      .sort((a, b) => b.st.rate - a.st.rate);
+    if (!rows.length) return null;
+    const avg = Math.round(rows.reduce((s2, r) => s2 + r.st.rate, 0) / rows.length);
+    return (<div style={{ marginBottom: 32 }}>
+      <h3 style={{ fontSize: 14, color: "#8A8F98", margin: "0 0 4px", letterSpacing: "0.05em" }}>ANTRENMAN DEVAMI</h3>
+      <p style={{ color: "#6B7080", fontSize: 12, margin: "0 0 12px" }}>
+        {teamDisplayName(team)} · {days} antrenman · takım ortalaması %{avg}
+      </p>
+      {rows.map(({ p, st }) => (
+        <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 10, padding: "10px 14px", marginBottom: 5 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: "#F0F0F0", fontSize: 13, fontWeight: 600 }}>{p.name}</div>
+            <div style={{ color: "#6B7080", fontSize: 11 }}>
+              {st.present} geldi · {st.late} geç · {st.absent} gelmedi{st.excused ? ` · ${st.excused} izinli` : ""}
+            </div>
+          </div>
+          <div style={{ width: 90, height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ width: `${st.rate}%`, height: "100%", background: st.rate >= 80 ? "#00D4AA" : st.rate >= 60 ? "#FFD23F" : "#E84855" }} />
+          </div>
+          <div style={{ minWidth: 42, textAlign: "right", fontSize: 14, fontWeight: 800, color: st.rate >= 80 ? "#00D4AA" : st.rate >= 60 ? "#FFD23F" : "#E84855" }}>%{st.rate}</div>
+        </div>
+      ))}
+    </div>);
+  })()}
     <h2 style={{ fontSize: 28, fontWeight: 800, color: "#F0F0F0", margin: "0 0 24px" }}>Gelişim Analizi</h2>
 
     {/* Personal Bests */}

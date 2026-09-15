@@ -11,7 +11,7 @@ const ROLE_MAP = {
   "Libero": "L"
 };
 
-export default function TacticsPage({ profiles = [], clubId, isMobile }) {
+export default function TacticsPage({ profiles = [], clubId, isMobile, team, netHeight }) {
   const ref = useRef(null);
   const [err, setErr] = useState(null);
 
@@ -20,8 +20,11 @@ export default function TacticsPage({ profiles = [], clubId, isMobile }) {
     if (!el) return;
     setErr(null);
 
-    /* Kulüp kadrosu taktik tahtasına tohumlanır — isim ikinci kez girilmez */
-    const players = profiles
+    /* Takım seçiliyse onun kadrosu, değilse kulübün tamamı tohumlanır */
+    const pool = team && (team.players || []).length
+      ? team.players.map(pid => profiles.find(p => p.id === pid)).filter(Boolean)
+      : profiles;
+    const players = pool
       .filter(p => p.position !== "Antrenör")
       .slice(0, 14)
       .map((p, i) => ({
@@ -34,8 +37,9 @@ export default function TacticsPage({ profiles = [], clubId, isMobile }) {
     try {
       unmount = mountTactics(el, {
         players,
-        stateKey: `vball-tactics-${clubId}`,
-        bookKey: `vball-tacticbook-${clubId}`,
+        netHeight,
+        stateKey: team ? `vball-tactics-t-${team.id}` : `vball-tactics-${clubId}`,
+        bookKey: team ? `vball-tacticbook-t-${team.id}` : `vball-tacticbook-${clubId}`,
         load: k => { try { return localStorage.getItem(k); } catch { return null; } },
         save: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { console.error(e); } }
       });
@@ -46,7 +50,7 @@ export default function TacticsPage({ profiles = [], clubId, isMobile }) {
     }
 
     return () => { if (unmount) { try { unmount(); } catch (e) { console.error(e); } } };
-  }, [clubId]);
+  }, [clubId, team && team.id]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
