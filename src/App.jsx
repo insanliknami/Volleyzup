@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import GoalsPage from "./pages/GoalsPage";
 import InjuryPage from "./pages/InjuryPage";
 import AttendancePage from "./pages/AttendancePage";
+import MatchStatsPage from "./pages/MatchStatsPage";
 import LibraryPage from "./pages/LibraryPage";
 import MeasurementsPage from "./pages/MeasurementsPage";
 import ProgressPage from "./pages/ProgressPage";
@@ -126,7 +127,7 @@ export default function App() {
       <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", minHeight: "calc(100vh - 60px)" }}>
         <nav className="hs" style={{ width: isMobile ? "100%" : 210, background: "rgba(255,255,255,0.02)", borderRight: isMobile ? "none" : "1px solid rgba(255,255,255,0.06)", borderBottom: isMobile ? "1px solid rgba(255,255,255,0.06)" : "none", padding: isMobile ? 12 : "20px 10px", flexShrink: 0, display: isMobile ? "flex" : "block", overflowX: isMobile ? "auto" : "visible" }}>
           {TABS.map(t => (<button key={t.id} onClick={() => setTab(t.id)} style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 10, width: isMobile ? "auto" : "100%", background: tab === t.id ? "rgba(255,107,53,0.1)" : "transparent", border: tab === t.id ? "1px solid rgba(255,107,53,0.2)" : "1px solid transparent", borderRadius: 12, padding: isMobile ? "8px 14px" : "11px 14px", marginBottom: isMobile ? 0 : 3, marginRight: isMobile ? 8 : 0, color: tab === t.id ? "#FF6B35" : "#6B7080", fontSize: isMobile ? 13 : 14, fontWeight: tab === t.id ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}><span style={{ fontSize: isMobile ? 14 : 16 }}>{t.icon}</span>{t.label}</button>))}
-          {!isMobile && <div style={{ marginTop: 28, padding: 14, background: "rgba(123,104,238,0.08)", border: "1px solid rgba(123,104,238,0.2)", borderRadius: 12 }}><div style={{ fontSize: 11, color: "#7B68EE", fontWeight: 700 }}>🔮 Yakında</div><div style={{ fontSize: 10, color: "#6B7080" }}>Maç istatistikleri</div></div>}
+
         </nav>
         <main style={{ flex: 1, padding: isMobile ? 16 : "28px 36px", maxWidth: 1000, overflowY: "auto" }}>
           {tab === "dashboard" && <Dashboard data={data} profile={activeProfile} isMobile={isMobile} team={activeTeam} profiles={profiles} onOpenAttendance={() => setTab("attendance")} announcements={announcements} setAnnouncements={setAnnouncementsAndSave} />}
@@ -135,6 +136,7 @@ export default function App() {
           {tab === "goals" && <GoalsPage data={data} setData={setData} profileId={activeProfile.id} isMobile={isMobile} />}
           {tab === "training" && <TrainingPage data={data} setData={setData} profileId={activeProfile.id} isMobile={isMobile} />}
           {tab === "library" && <LibraryPage isMobile={isMobile} />}
+          {tab === "stats" && <MatchStatsPage team={activeTeam} profiles={profiles} matches={matches} isMobile={isMobile} />}
           {tab === "attendance" && <AttendancePage team={activeTeam} profiles={profiles} isMobile={isMobile} />}
           {tab === "teams" && <TeamsPage teams={teams} setTeams={setTeamsAndSave} profiles={profiles} setProfiles={setProfilesAndSave} isMobile={isMobile} activeTeamId={activeTeamId} onSelectTeam={selectTeam} />}
           {tab === "tactics" && (

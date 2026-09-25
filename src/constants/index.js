@@ -10,6 +10,7 @@ export const TABS = [
   { id: "training", label: "Antrenman", icon: "⚡" },
   { id: "library", label: "Kütüphane", icon: "📚" },
   { id: "attendance", label: "Yoklama", icon: "✅" },
+  { id: "stats", label: "Maç İstatistiği", icon: "📊" },
   { id: "teams", label: "Takımlar", icon: "👥" },
   { id: "tactics", label: "Taktik Tahtası", icon: "▦" },
   { id: "measurements", label: "Ölçümler", icon: "📏" },

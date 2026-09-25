@@ -59,3 +59,20 @@ export function attendanceStats(teamId, playerId) {
   return { present, absent, excused, late, total,
     rate: counted ? Math.round(((present + late) / counted) * 100) : null };
 }
+
+/* ═══ MAÇ İSTATİSTİĞİ STORAGE (takım bazlı) ═══ */
+export function loadStatIndex(teamId) { return ls(`vball-ms-idx-${teamId}`) || []; }
+export function loadStatSession(id) { return ls(`vball-ms-${id}`); }
+export function saveStatSession(sess) {
+  ss(`vball-ms-${sess.id}`, sess);
+  const idx = ls(`vball-ms-idx-${sess.teamId}`) || [];
+  const meta = { id: sess.id, opponent: sess.opponent, date: sess.date };
+  const i = idx.findIndex(x => x.id === sess.id);
+  if (i >= 0) idx[i] = meta; else idx.push(meta);
+  idx.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  ss(`vball-ms-idx-${sess.teamId}`, idx);
+}
+export function deleteStatSession(teamId, id) {
+  try { localStorage.removeItem(`vball-ms-${id}`); } catch (e) { console.error(e); }
+  ss(`vball-ms-idx-${teamId}`, (ls(`vball-ms-idx-${teamId}`) || []).filter(x => x.id !== id));
+}

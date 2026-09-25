@@ -5,7 +5,7 @@ import { gid } from "../lib/utils";
 import { attendanceStats } from "../lib/storage";
 import ConfirmModal from "../ui/ConfirmModal";
 
-const EMPTY = { name: "", category: "midi", level: "", gender: "k", players: [] };
+const EMPTY = { name: "", category: "midi", level: "", gender: "k", players: [], numbers: {} };
 
 export default function TeamsPage({ teams, setTeams, profiles, setProfiles, isMobile, activeTeamId, onSelectTeam }) {
   const [edit, setEdit] = useState(null);      // düzenlenen takım (yeni ise id yok)
@@ -193,6 +193,29 @@ export default function TeamsPage({ teams, setTeams, profiles, setProfiles, isMo
             • işaretli oyuncular kendi telefonundan giriş yapmış olanlardır.
           </div>
 
+          {edit.players.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={LS}>Forma numaraları — maç istatistiğinde klavye kodu için (7K3 gibi)</label>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 6 }}>
+                {edit.players.map(pid => {
+                  const pl = profiles.find(x => x.id === pid); if (!pl) return null;
+                  const nums = edit.numbers || {};
+                  const clash = nums[pid] && Object.entries(nums).some(([k, v]) => k !== pid && v === nums[pid] && edit.players.includes(k));
+                  return (
+                    <div key={pid} style={{ display: "flex", alignItems: "center", gap: 6,
+                      background: "rgba(255,255,255,0.02)", border: `1px solid ${clash ? "rgba(232,72,85,0.5)" : "rgba(255,255,255,0.06)"}`,
+                      borderRadius: 8, padding: "4px 6px 4px 10px" }}>
+                      <span style={{ flex: 1, color: "#C0C4CC", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pl.name}</span>
+                      <input value={nums[pid] || ""} inputMode="numeric" maxLength={2} placeholder="#"
+                        onChange={e => setEdit({ ...edit, numbers: { ...nums, [pid]: e.target.value.replace(/\D/g, "").slice(0, 2) } })}
+                        style={{ ...IS, width: 46, padding: "6px 4px", textAlign: "center", fontWeight: 700 }} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={save} style={{ background: "#FF6B35", border: "none", borderRadius: 10,
               padding: "10px 22px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer",
@@ -231,7 +254,7 @@ export default function TeamsPage({ teams, setTeams, profiles, setProfiles, isMo
                 {activeTeamId !== t.id && (
                   <button onClick={() => onSelectTeam(t.id)} style={BTN(false, "#00D4AA")}>Seç</button>
                 )}
-                <button onClick={() => setEdit({ ...EMPTY, ...t, players: [...(t.players || [])] })}
+                <button onClick={() => setEdit({ ...EMPTY, ...t, players: [...(t.players || [])], numbers: { ...(t.numbers || {}) } })}
                   style={BTN(false)}>Düzenle</button>
                 <button onClick={() => setConfirm({
                   message: `${teamDisplayName(t)} takımı silinecek. Oyuncular kulüpte kalır.`,
